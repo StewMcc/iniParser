@@ -10,57 +10,52 @@
 #include <cstdlib>
 
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <map>
 
+#include <cstdarg>
+
 using namespace std;
 
-// define to enable debug of every line, good for error checking.
-#ifdef CONFIGINI_DEBUG
-#include <cstdarg>
-#endif
-
-void DebugLogLine(const char * text, ...) {
-	//  out put all the debug info to console.
-#ifdef CONFIGINI_DEBUG
-
+/** Change to use prefered debug technique. **/
+#include "OutputDebugConsole.h"
+void Log(const char* text, ...) {
 	va_list args;
 	va_start(args, text);
-	int len;
-	char * text_buffer;
-	// gets the size of the combined text and args, so dont have buffer overflow.
-	len = _vscprintf(text, args) + 1; // _vscprintf doesn't count /0		
-	text_buffer = new char[len];
-
-	// basically does the formating of printf but binds entry_iterator to the text buffer instead
-	vsprintf_s(text_buffer, len, text, args);
-
-	printf("%s \n", text_buffer);
+	LittleLot::OutputDebugText(text, args);
+	va_end(args);
+}
+void DebugLogLine(const char * text, ...) {
+#ifdef CONFIGINI_DEBUG
+	//  Outputs all the extra debug info to console.
+	va_list args;
+	va_start(args, text);
+	LittleLot::OutputDebugText(text, args);
 	va_end(args);
 #endif
 }
 
 ConfigIni::ConfigIni(const char *fileNameWithPath) :
 	file_stream_(NULL),
-	auto_save_(false) {
-	strcpy_s(ini_filename_, fileNameWithPath);
+	auto_save_(false),
+	ini_filename_(fileNameWithPath) {
 	LoadConfigFile();
 }
 
 ConfigIni::~ConfigIni() {
 	if (auto_save_) {
-		cout << "AUTO save Config file[" << ini_filename_ << "]" << endl;
+		Log("AUTO save Config file[%s]", ini_filename_);
 		WriteConfigFile();
 	}
 }
 
-void ConfigIni::WriteConfigFile(const char* filename) {
-	auto_save_ = false;
-	if (filename == NULL) filename = ini_filename_;
+void ConfigIni::WriteConfigFile(const char* override_filename) {	
+	if (override_filename == NULL) {
+		override_filename = ini_filename_.c_str();
+	}
 	fstream file_stream_;
-	file_stream_.open(filename, ios_base::out | ios_base::trunc);
-	DebugLogLine("start write file[%s]", filename);
+	file_stream_.open(override_filename, ios_base::out | ios_base::trunc);
+	DebugLogLine("start write file[%s]", override_filename);
 	string index = string("");
 	bool with_comment = false;
 	bool is_start = true;
@@ -68,10 +63,12 @@ void ConfigIni::WriteConfigFile(const char* filename) {
 		ConfigIniEntry entry = *entry_iterator;
 		if (entry.is_comment) {
 			with_comment = true;
-			if (is_start) file_stream_ << entry.comment.c_str() << endl;
-			else file_stream_ << endl << entry.comment.c_str() << endl;
+			if (is_start) {
+				file_stream_ << entry.comment.c_str() << endl;
+			} else {
+				file_stream_ << endl << entry.comment.c_str() << endl;
+			}
 			is_start = false;
-
 			DebugLogLine("write comment:%s", entry.comment.c_str());
 			continue;
 		}
@@ -95,14 +92,24 @@ void ConfigIni::WriteConfigFile(const char* filename) {
 	}
 	file_stream_ << endl;
 	file_stream_.close();
-	DebugLogLine("write configfile[%s] end", filename);
+	DebugLogLine("write configfile[%s] end", override_filename);
+}
+
+void ConfigIni::TurnOffAutoSave() {
+	auto_save_ = false;
 }
 
 bool ConfigIni::GetBoolValue(const char* index, const char *name) {
 	const char *temporary_sting_data_ = GetStringValue(index, name);
-	if (temporary_sting_data_ == NULL) { printf("notfound for [%s]-[%s]\n", index, name); return false; }
-	if (strcmp(temporary_sting_data_, "true") == 0) return true;
-	else return false;
+	if (temporary_sting_data_ == NULL) {
+		Log("notfound for [%s]-[%s]\n", index, name);
+		return false;
+	}
+	if (strcmp(temporary_sting_data_, "true") == 0) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int ConfigIni::GetIntValue(const char *index, const char* name) {
@@ -116,7 +123,10 @@ int ConfigIni::GetIntValue(const char *index, const char* name) {
 
 float ConfigIni::GetFloatValue(const char* index, const char *name) {
 	const char *temporary_sting_data_ = GetStringValue(index, name);
-	if (temporary_sting_data_ == NULL) { cout << "notfound" << endl; return -1.0; }
+	if (temporary_sting_data_ == NULL) {
+		Log("notfound");
+		return -1.0;
+	}
 	return stof(temporary_sting_data_);
 }
 
@@ -126,18 +136,22 @@ const char* ConfigIni::GetStringValue(const char* index, const char *name) {
 		if (strcmp(vector_data_[i].index.c_str(), index) == 0) {
 			DebugLogLine("find index[%s]", vector_data_[i].index.c_str());
 			for (; i < vector_data_.size(); i++) {
-				if (strcmp(vector_data_[i].name.c_str(), name) == 0)
+				if (strcmp(vector_data_[i].name.c_str(), name) == 0) {
 					return vector_data_[i].value.c_str();
+				}
 			}
 		}
 	}
-	cout << "DEBUG: [" << index << "] of--[" << name << "] not found" << endl;
+	Log("DEBUG: [%s] of--[%s] not found", index, name);
 	return NULL;
 }
 
 void ConfigIni::SetBoolValue(const char* index, const char *name, bool value) {
-	if (value) sprintf_s(temporary_sting_data_, "true");
-	else sprintf_s(temporary_sting_data_, "false");
+	if (value) {
+		sprintf_s(temporary_sting_data_, "true");
+	} else {
+		sprintf_s(temporary_sting_data_, "false");
+	}
 	SetStringValueWithIndex(index, name, temporary_sting_data_);
 }
 
@@ -161,28 +175,35 @@ void ConfigIni::SetStringValueWithIndex(const char *index, const char* name, con
 	entry.index = index;
 	entry.name = name;
 	entry.value = value;
-	if (vector_data_.size() == 0) {/*cout<<"data is NULL, push and return"<<endl; */
+
+	if (vector_data_.size() == 0) {
+		// vector is empty so just push it.
 		vector_data_.push_back(entry);
+
 		return;
 	}
+	// Now we go through all the data and check for an entry.
 	vector<ConfigIniEntry>::iterator entry_iterator = vector_data_.begin();
-	bool find_index = false;
-	bool find_name = false;
+	bool found_index = false;
+	bool found_name = false;
 	vector<ConfigIniEntry>::iterator iterator_insert_position;
 	for (entry_iterator = vector_data_.begin(); entry_iterator != vector_data_.end(); entry_iterator++) {
-		if (find_index == false) {
+		if (found_index == false) {
+			// Check if correct index.
 			if (strcmp(entry_iterator->index.c_str(), index) == 0) {
-				find_index = true;
+				found_index = true;
 			}
 		}
-		if (find_index == true) {
+		if (found_index == true) {
+			// Check if we've went through all the names on this index?
 			if (strcmp(entry_iterator->index.c_str(), index) != 0) {
 				break;
 			} else {
 				iterator_insert_position = entry_iterator;
 			}
+			// Check if we have the correct name
 			if (strcmp(entry_iterator->name.c_str(), name) == 0) {
-				find_name = true;
+				found_name = true;
 				iterator_insert_position = entry_iterator;
 				break;
 			}
@@ -190,25 +211,25 @@ void ConfigIni::SetStringValueWithIndex(const char *index, const char* name, con
 		}
 		iterator_insert_position = entry_iterator;
 	}
-	if (find_index && find_name) {
+	// If it exists replace whats their.
+	if (found_index && found_name) {
 		iterator_insert_position->value = string(value);
 		return;
 	}
-
+	// Otherwise it doesn't exist so add it to the end of that index.
 	vector_data_.insert(++iterator_insert_position, 1, entry);
 }
 
 void ConfigIni::LoadConfigFile() {
 
 	fstream file_stream_;
-	string p = ini_filename_;
 
-	file_stream_.open(p, ios::in);
-	if (!file_stream_) {		
-		printf("inifile [%s] not found, create a new file (WriteConfigFile())\n", ini_filename_);		
+	file_stream_.open(ini_filename_, ios::in);
+	if (!file_stream_) {
+		Log("inifile [%s] not found, create a new file (WriteConfigFile())", ini_filename_);
 		return;
 	} else {
-		DebugLogLine("file open OK\n");
+		DebugLogLine("file open OK");
 	}
 	char line[4096];
 	char ch;
@@ -220,7 +241,9 @@ void ConfigIni::LoadConfigFile() {
 		file_stream_.read(&ch, 1);
 
 		ConfigIniEntry entry;
-		if (ch == '#' && i == 0) is_comment = true;
+		if (ch == '#' && i == 0) {
+			is_comment = true;
+		}
 		if (is_comment == true && (ch == '\n' || ch == '\r')) {
 			is_comment = false;
 			line[i++] = '\0';
@@ -234,9 +257,12 @@ void ConfigIni::LoadConfigFile() {
 			continue;
 		}
 		//zfu: all up for comment
-		if (ch != '\n' || ch == '\r') line[i++] = ch;
-		else {
-			if (i == 0) continue;
+		if (ch != '\n' || ch == '\r') {
+			line[i++] = ch;
+		} else {
+			if (i == 0) {
+				continue;
+			}
 			line[i] = '\0';
 			temporary_sting_data_ = string(line);
 			DebugLogLine("read one line {%s}", temporary_sting_data_.c_str());
@@ -260,7 +286,7 @@ void ConfigIni::LoadConfigFile() {
 		entry.name = temporary_sting_data_.substr(0, fIndex);
 		entry.value = temporary_sting_data_.substr(fIndex + 1, temporary_sting_data_.length() - fIndex - 1);
 		vector_data_.push_back(entry);
-		DebugLogLine("last add entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
+		DebugLogLine("last added entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
 	}
 	file_stream_.close();
 }
@@ -268,11 +294,14 @@ void ConfigIni::LoadConfigFile() {
 void ConfigIni::DebugLogAllCurrentData() {
 	for (vector<ConfigIniEntry>::iterator entry_iterator = vector_data_.begin(); entry_iterator != vector_data_.end(); entry_iterator++) {
 		ConfigIniEntry entry = *entry_iterator;
-		printf("\n--------print All Entry of file[%s]------------\n", ini_filename_);
-		if (entry.is_comment) { cout << entry.comment << endl; continue; }
-		printf("  index:%s\n", entry.index.c_str());
-		printf("  name:%s\n", entry.name.c_str());
-		printf("  value:%s\n", entry.value.c_str());
+		Log("--------print All Entry of file[%s]------------", ini_filename_);
+		if (entry.is_comment) {
+			Log(entry.comment.c_str());
+			continue;
+		}
+		Log("  index:%s", entry.index.c_str());
+		Log("  name:%s", entry.name.c_str());
+		Log("  value:%s", entry.value.c_str());
 	}
 }
 

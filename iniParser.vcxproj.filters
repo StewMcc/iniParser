@@ -3,8 +3,10 @@
   <ItemGroup>
     <ClCompile Include="ConfigINI.cpp" />
     <ClCompile Include="test.cpp" />
+    <ClCompile Include="OutputDebugConsole.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConfigINI.h" />
+    <ClInclude Include="OutputDebugConsole.h" />
   </ItemGroup>
 </Project>

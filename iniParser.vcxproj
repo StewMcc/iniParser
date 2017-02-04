@@ -147,10 +147,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ConfigINI.cpp" />
+    <ClCompile Include="OutputDebugConsole.cpp" />
     <ClCompile Include="test.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConfigINI.h" />
+    <ClInclude Include="OutputDebugConsole.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

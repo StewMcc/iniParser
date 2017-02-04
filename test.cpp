@@ -10,10 +10,13 @@ int main() {
 	ini.SetIntValue("section1", "intValue", 1);
 	ini.SetFloatValue("section1", "floatValue", 0.1f);
 	ini.SetStringValue("section2", "stringValue", "hello, world");
-	ini.SetBoolValue("section2", "boolValue", true);
+	ini.SetBoolValue("section2", "boolValue", false);
 
-	// This happens by default when it goes out of scope aswell.
-	ini.WriteConfigFile();
+	// This stops it from saving when it is destroyed, Editing files afterwards will turn auto save back on.
+	ini.TurnOffAutoSave();
+
+	// This happens by default when it goes out of scope aswell if you have edited anything.
+	ini.WriteConfigFile("Newfile.ini");
 
 	// -1 if not found, so best storing >0 values, should more than likely change this.
 	// TODO: &Param to fill, and return bool if succeded.
@@ -34,7 +37,7 @@ int main() {
 	if (stringValue) {
 		std::cout << "[section2]-stringValue:\t" << stringValue << std::endl;
 	}
-	std::cout << "[section2]-boolValue:\t" << boolValue << std::endl;
+	std::cout << "[section2]-boolValue:\t" << boolValue << std::endl;	
 
 	return 0;
 }
