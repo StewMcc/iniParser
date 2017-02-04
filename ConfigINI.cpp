@@ -1,8 +1,8 @@
 /*
  * Create by fuzhuo at 11/12/2013
- * Updated by stewmcc at 03/02/2017
+ * Updated by stewmcc at 04/02/2017
  */
-#include "ConfigINI.h"
+#include "ConfigIni.h"
 
 #include <iostream>
 #include <fstream>
@@ -21,9 +21,7 @@ using namespace std;
 #include <cstdarg>
 #endif
 
-#define log printf
-
-void mlog(const char * text, ...) {
+void DebugLogLine(const char * text, ...) {
 	//  out put all the debug info to console.
 #ifdef CONFIGINI_DEBUG
 
@@ -35,7 +33,7 @@ void mlog(const char * text, ...) {
 	len = _vscprintf(text, args) + 1; // _vscprintf doesn't count /0		
 	text_buffer = new char[len];
 
-	// basically does the formating of printf but binds it to the text buffer instead
+	// basically does the formating of printf but binds entry_iterator to the text buffer instead
 	vsprintf_s(text_buffer, len, text, args);
 
 	printf("%s \n", text_buffer);
@@ -43,52 +41,195 @@ void mlog(const char * text, ...) {
 #endif
 }
 
-
-ConfigINI::ConfigINI(const char *fileNameWithPath, bool _autoCreate) :
-	data(NULL),
-	fStream(NULL),
-	autoSave(false),
-	autoCreate(_autoCreate) {
-	strcpy_s(iniFileName, fileNameWithPath);
-	loadConfigFile();
+ConfigIni::ConfigIni(const char *fileNameWithPath) :
+	file_stream_(NULL),
+	auto_save_(false) {
+	strcpy_s(ini_filename_, fileNameWithPath);
+	LoadConfigFile();
 }
 
-void ConfigINI::loadConfigFile() {
+ConfigIni::~ConfigIni() {
+	if (auto_save_) {
+		cout << "AUTO save Config file[" << ini_filename_ << "]" << endl;
+		WriteConfigFile();
+	}
+}
 
-	fstream fStream;
-	string p = iniFileName;
+void ConfigIni::WriteConfigFile(const char* filename) {
+	auto_save_ = false;
+	if (filename == NULL) filename = ini_filename_;
+	fstream file_stream_;
+	file_stream_.open(filename, ios_base::out | ios_base::trunc);
+	DebugLogLine("start write file[%s]", filename);
+	string index = string("");
+	bool with_comment = false;
+	bool is_start = true;
+	for (vector<ConfigIniEntry>::iterator entry_iterator = vector_data_.begin(); entry_iterator != vector_data_.end(); entry_iterator++) {
+		ConfigIniEntry entry = *entry_iterator;
+		if (entry.is_comment) {
+			with_comment = true;
+			if (is_start) file_stream_ << entry.comment.c_str() << endl;
+			else file_stream_ << endl << entry.comment.c_str() << endl;
+			is_start = false;
 
-	fStream.open(p, ios::in);
-	if (!fStream) {
-		if (!autoCreate) {
-			log("load config, file [%s] not exist", iniFileName);
-		} else {
-			log("inifile [%s] not found, create a new file", iniFileName);
+			DebugLogLine("write comment:%s", entry.comment.c_str());
+			continue;
 		}
+		if (strcmp(index.c_str(), entry.index.c_str()) != 0) {
+			index = entry.index;
+			if (with_comment || is_start) {
+				file_stream_ << '[' << entry.index << ']' << endl;
+				with_comment = false; is_start = false;
+				DebugLogLine("write index[%s]", entry.index.c_str());
+			} else {
+				file_stream_ << endl << '[' << entry.index << ']' << endl;
+				DebugLogLine("write index [%s]", entry.index.c_str());
+			}
+		}
+		if (strlen(entry.name.c_str()) == 0 || strlen(entry.value.c_str()) == 0) {
+			DebugLogLine("skip invalid entry");
+			continue;
+		}
+		file_stream_ << entry.name << '=' << entry.value << endl;
+		DebugLogLine("write :%s=%s", entry.name.c_str(), entry.value.c_str());
+	}
+	file_stream_ << endl;
+	file_stream_.close();
+	DebugLogLine("write configfile[%s] end", filename);
+}
+
+bool ConfigIni::GetBoolValue(const char* index, const char *name) {
+	const char *temporary_sting_data_ = GetStringValue(index, name);
+	if (temporary_sting_data_ == NULL) { printf("notfound for [%s]-[%s]\n", index, name); return false; }
+	if (strcmp(temporary_sting_data_, "true") == 0) return true;
+	else return false;
+}
+
+int ConfigIni::GetIntValue(const char *index, const char* name) {
+	const char *temporary_sting_data_ = GetStringValue(index, name);
+	if (!temporary_sting_data_) {
+		return -1;
+	} else {
+		return atoi(temporary_sting_data_);
+	}
+}
+
+float ConfigIni::GetFloatValue(const char* index, const char *name) {
+	const char *temporary_sting_data_ = GetStringValue(index, name);
+	if (temporary_sting_data_ == NULL) { cout << "notfound" << endl; return -1.0; }
+	return stof(temporary_sting_data_);
+}
+
+const char* ConfigIni::GetStringValue(const char* index, const char *name) {
+	DebugLogLine("find index[%s]-name[%s]", index, name);
+	for (unsigned int i = 0; i < vector_data_.size(); i++) {
+		if (strcmp(vector_data_[i].index.c_str(), index) == 0) {
+			DebugLogLine("find index[%s]", vector_data_[i].index.c_str());
+			for (; i < vector_data_.size(); i++) {
+				if (strcmp(vector_data_[i].name.c_str(), name) == 0)
+					return vector_data_[i].value.c_str();
+			}
+		}
+	}
+	cout << "DEBUG: [" << index << "] of--[" << name << "] not found" << endl;
+	return NULL;
+}
+
+void ConfigIni::SetBoolValue(const char* index, const char *name, bool value) {
+	if (value) sprintf_s(temporary_sting_data_, "true");
+	else sprintf_s(temporary_sting_data_, "false");
+	SetStringValueWithIndex(index, name, temporary_sting_data_);
+}
+
+void ConfigIni::SetIntValue(const char* index, const char *name, int value) {
+	sprintf_s(temporary_sting_data_, "%d", value);
+	SetStringValueWithIndex(index, name, temporary_sting_data_);
+}
+
+void ConfigIni::SetFloatValue(const char* index, const char *name, float value) {
+	sprintf_s(temporary_sting_data_, "%f", value);
+	SetStringValueWithIndex(index, name, temporary_sting_data_);
+}
+
+void ConfigIni::SetStringValue(const char *index, const char* name, const char* value) {
+	SetStringValueWithIndex(index, name, value);
+}
+
+void ConfigIni::SetStringValueWithIndex(const char *index, const char* name, const char* value) {
+	auto_save_ = true;
+	ConfigIniEntry entry;
+	entry.index = index;
+	entry.name = name;
+	entry.value = value;
+	if (vector_data_.size() == 0) {/*cout<<"data is NULL, push and return"<<endl; */
+		vector_data_.push_back(entry);
+		return;
+	}
+	vector<ConfigIniEntry>::iterator entry_iterator = vector_data_.begin();
+	bool find_index = false;
+	bool find_name = false;
+	vector<ConfigIniEntry>::iterator iterator_insert_position;
+	for (entry_iterator = vector_data_.begin(); entry_iterator != vector_data_.end(); entry_iterator++) {
+		if (find_index == false) {
+			if (strcmp(entry_iterator->index.c_str(), index) == 0) {
+				find_index = true;
+			}
+		}
+		if (find_index == true) {
+			if (strcmp(entry_iterator->index.c_str(), index) != 0) {
+				break;
+			} else {
+				iterator_insert_position = entry_iterator;
+			}
+			if (strcmp(entry_iterator->name.c_str(), name) == 0) {
+				find_name = true;
+				iterator_insert_position = entry_iterator;
+				break;
+			}
+			continue;
+		}
+		iterator_insert_position = entry_iterator;
+	}
+	if (find_index && find_name) {
+		iterator_insert_position->value = string(value);
+		return;
+	}
+
+	vector_data_.insert(++iterator_insert_position, 1, entry);
+}
+
+void ConfigIni::LoadConfigFile() {
+
+	fstream file_stream_;
+	string p = ini_filename_;
+
+	file_stream_.open(p, ios::in);
+	if (!file_stream_) {		
+		printf("inifile [%s] not found, create a new file (WriteConfigFile())\n", ini_filename_);		
 		return;
 	} else {
-		mlog("file open OK\n");
+		DebugLogLine("file open OK\n");
 	}
 	char line[4096];
 	char ch;
 	int i = 0;
 	string index;
-	string str;
-	bool isComment = false;
-	while (!fStream.eof()) {
-		fStream.read(&ch, 1);
+	string temporary_sting_data_;
+	bool is_comment = false;
+	while (!file_stream_.eof()) {
+		file_stream_.read(&ch, 1);
 
-		ConfigINIEntry entry;
-		if (ch == '#' && i == 0) isComment = true;
-		if (isComment == true && (ch == '\n' || ch == '\r')) {
-			isComment = false;
+		ConfigIniEntry entry;
+		if (ch == '#' && i == 0) is_comment = true;
+		if (is_comment == true && (ch == '\n' || ch == '\r')) {
+			is_comment = false;
 			line[i++] = '\0';
 			i = 0;
-			entry.isComment = true;
+			entry.is_comment = true;
 			entry.comment = line;
-			datas.push_back(entry);
+			vector_data_.push_back(entry);
 		}
-		if (isComment == true) {
+		if (is_comment == true) {
 			line[i++] = ch;
 			continue;
 		}
@@ -97,194 +238,41 @@ void ConfigINI::loadConfigFile() {
 		else {
 			if (i == 0) continue;
 			line[i] = '\0';
-			str = string(line);
-			mlog("read one line {%s}", str.c_str());
+			temporary_sting_data_ = string(line);
+			DebugLogLine("read one line {%s}", temporary_sting_data_.c_str());
 			if (line[0] == '[') {
-				index = str;
+				index = temporary_sting_data_;
 			} else {
 				entry.index = index.substr(1, index.length() - 2);
-				size_t fIndex = str.find_first_of('=');
-				entry.name = str.substr(0, fIndex);
-				entry.value = str.substr(fIndex + 1, str.length() - fIndex - 1);
-				datas.push_back(entry);
-				mlog("entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
+				size_t fIndex = temporary_sting_data_.find_first_of('=');
+				entry.name = temporary_sting_data_.substr(0, fIndex);
+				entry.value = temporary_sting_data_.substr(fIndex + 1, temporary_sting_data_.length() - fIndex - 1);
+				vector_data_.push_back(entry);
+				DebugLogLine("entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
 			}
 			i = 0;
 		}
 	}
 	if (i != 0) {
-		ConfigINIEntry entry;
-		entry.index = str;
-		size_t fIndex = str.find_first_of('=');
-		entry.name = str.substr(0, fIndex);
-		entry.value = str.substr(fIndex + 1, str.length() - fIndex - 1);
-		datas.push_back(entry);
-		mlog("last add entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
+		ConfigIniEntry entry;
+		entry.index = temporary_sting_data_;
+		size_t fIndex = temporary_sting_data_.find_first_of('=');
+		entry.name = temporary_sting_data_.substr(0, fIndex);
+		entry.value = temporary_sting_data_.substr(fIndex + 1, temporary_sting_data_.length() - fIndex - 1);
+		vector_data_.push_back(entry);
+		DebugLogLine("last add entry: index@[%s]\t name@[%s]\t value@[%s]", entry.index.c_str(), entry.name.c_str(), entry.value.c_str());
 	}
-	fStream.close();
+	file_stream_.close();
 }
 
-ConfigINI::~ConfigINI() {
-	if (autoSave) {
-		cout << "AUTO save Config file[" << iniFileName << "]" << endl;
-		writeConfigFile();
-	}
-}
-
-void ConfigINI::writeConfigFile(const char* fileName) {
-	autoSave = false;
-	if (fileName == NULL) fileName = iniFileName;
-	fstream fStream;
-	fStream.open(fileName, ios_base::out | ios_base::trunc);
-	mlog("start write file[%s]", fileName);
-	string index = string("");
-	bool withComment = false;
-	bool isStart = true;
-	for (vector<ConfigINIEntry>::iterator it = datas.begin(); it != datas.end(); it++) {
-		ConfigINIEntry entry = *it;
-		if (entry.isComment) {
-			withComment = true;
-			if (isStart) fStream << entry.comment.c_str() << endl;
-			else fStream << endl << entry.comment.c_str() << endl;
-			isStart = false;
-
-			mlog("write comment:%s", entry.comment.c_str());
-			continue;
-		}
-		if (strcmp(index.c_str(), entry.index.c_str()) != 0) {
-			index = entry.index;
-			if (withComment || isStart) {
-				fStream << '[' << entry.index << ']' << endl;
-				withComment = false; isStart = false;
-				mlog("write index[%s]", entry.index.c_str());
-			} else {
-				fStream << endl << '[' << entry.index << ']' << endl;
-				mlog("write index [%s]", entry.index.c_str());
-			}
-		}
-		if (strlen(entry.name.c_str()) == 0 || strlen(entry.value.c_str()) == 0) {
-			mlog("skip invalid entry");
-			continue;
-		}
-		fStream << entry.name << '=' << entry.value << endl;
-		mlog("write :%s=%s", entry.name.c_str(), entry.value.c_str());
-	}
-	fStream << endl;
-	fStream.close();
-	mlog("write configfile[%s] end", fileName);
-}
-
-void ConfigINI::setStringValueWithIndex(const char *index, const char* name, const char* value) {
-	autoSave = true;
-	ConfigINIEntry entry;
-	entry.index = index;
-	entry.name = name;
-	entry.value = value;
-	if (datas.size() == 0) {/*cout<<"data is NULL, push and return"<<endl; */
-		datas.push_back(entry);
-		return;
-	}
-	vector<ConfigINIEntry>::iterator it = datas.begin();
-	bool findIndex = false;
-	bool findName = false;
-	vector<ConfigINIEntry>::iterator itInsertPos;
-	for (it = datas.begin(); it != datas.end(); it++) {
-		if (findIndex == false) {
-			if (strcmp(it->index.c_str(), index) == 0) {
-				findIndex = true;
-			}
-		}
-		if (findIndex == true) {
-			if (strcmp(it->index.c_str(), index) != 0) {
-				break;
-			} else {
-				itInsertPos = it;
-			}
-			if (strcmp(it->name.c_str(), name) == 0) {
-				findName = true;
-				itInsertPos = it;
-				break;
-			}
-			continue;
-		}
-		itInsertPos = it;
-	}
-	if (findIndex && findName) {
-		itInsertPos->value = string(value);
-		return;
-	}
-
-	datas.insert(++itInsertPos, 1, entry);
-}
-
-/***********getter*************/
-bool ConfigINI::getBoolValue(const char* index, const char *name) {
-	const char *str = getStringValue(index, name);
-	if (str == NULL) { log("notfound for [%s]-[%s]", index, name); return false; }
-	if (strcmp(str, "true") == 0) return true;
-	else return false;
-}
-
-int ConfigINI::getIntValue(const char *index, const char* name) {
-	const char *str = getStringValue(index, name);
-	if (!str) {
-		return -1;
-	} else {
-		return atoi(str);
-	}
-}
-
-float ConfigINI::getFloatValue(const char* index, const char *name) {
-	const char *str = getStringValue(index, name);
-	if (str == NULL) { cout << "notfound" << endl; return -1.0; }
-	return stof(str);
-}
-
-const char* ConfigINI::getStringValue(const char* index, const char *name) {
-	mlog("find index[%s]-name[%s]", index, name);
-	for (unsigned int i = 0; i < datas.size(); i++) {
-		if (strcmp(datas[i].index.c_str(), index) == 0) {
-			mlog("find index[%s]", datas[i].index.c_str());
-			for (; i < datas.size(); i++) {
-				if (strcmp(datas[i].name.c_str(), name) == 0)
-					return datas[i].value.c_str();
-			}
-		}
-	}
-	cout << "DEBUG: [" << index << "] of--[" << name << "] not found" << endl;
-	return NULL;
-}
-
-/***********setter*************/
-void ConfigINI::setBoolValue(const char* index, const char *name, bool value) {
-	if (value) sprintf_s(str, "true");
-	else sprintf_s(str, "false");
-	setStringValueWithIndex(index, name, str);
-}
-
-void ConfigINI::setIntValue(const char* index, const char *name, int value) {
-	sprintf_s(str, "%d", value);
-	setStringValueWithIndex(index, name, str);
-}
-
-void ConfigINI::setFloatValue(const char* index, const char *name, float value) {
-	sprintf_s(str, "%f", value);
-	setStringValueWithIndex(index, name, str);
-}
-
-void ConfigINI::setStringValue(const char *index, const char* name, const char* value) {
-	setStringValueWithIndex(index, name, value);
-}
-
-/*------------------------------------ for DEBUG ---------------------------------------*/
-void ConfigINI::printAll() {
-	for (vector<ConfigINIEntry>::iterator it = datas.begin(); it != datas.end(); it++) {
-		ConfigINIEntry entry = *it;
-		log("--------print All Entry of file[%s]------------", iniFileName);
-		if (entry.isComment) { cout << entry.comment << endl; continue; }
-		log("  index:%s", entry.index.c_str());
-		log("  name:%s", entry.name.c_str());
-		log("  value:%s", entry.value.c_str());
+void ConfigIni::DebugLogAllCurrentData() {
+	for (vector<ConfigIniEntry>::iterator entry_iterator = vector_data_.begin(); entry_iterator != vector_data_.end(); entry_iterator++) {
+		ConfigIniEntry entry = *entry_iterator;
+		printf("\n--------print All Entry of file[%s]------------\n", ini_filename_);
+		if (entry.is_comment) { cout << entry.comment << endl; continue; }
+		printf("  index:%s\n", entry.index.c_str());
+		printf("  name:%s\n", entry.name.c_str());
+		printf("  value:%s\n", entry.value.c_str());
 	}
 }
 

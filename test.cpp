@@ -1,22 +1,39 @@
-#include "ConfigINI.h"
+#include "ConfigIni.h"
 #include <iostream>
 
+/*
+ *	Example of ConfigIni being used, with break down of Gotcha's.
+ *
+ */
 int main() {
-	ConfigINI ini = ConfigINI("test.ini");
-	ini.setIntValue("section1", "intValue", 1);
-	ini.setFloatValue("section1", "floatValue", 0.1f);
-	ini.setStringValue("section2", "stringValue", "hello, world");
-	ini.setBoolValue("section2", "boolValue", true);
-	ini.writeConfigFile();
+	ConfigIni ini = ConfigIni("test.ini");
+	ini.SetIntValue("section1", "intValue", 1);
+	ini.SetFloatValue("section1", "floatValue", 0.1f);
+	ini.SetStringValue("section2", "stringValue", "hello, world");
+	ini.SetBoolValue("section2", "boolValue", true);
 
-	int intValue = ini.getIntValue("section1", "intValue");
-	float floatValue = ini.getFloatValue("section1", "floatValue");
-	const char *stringValue = ini.getStringValue("section2", "stringValue");
-	bool boolValue = ini.getBoolValue("section2", "boolValue");
+	// This happens by default when it goes out of scope aswell.
+	ini.WriteConfigFile();
+
+	// -1 if not found, so best storing >0 values, should more than likely change this.
+	// TODO: &Param to fill, and return bool if succeded.
+	int intValue = ini.GetIntValue("section1", "intValue");
+	
+	// Also -1.0 if not found, so best storing >0 values, should more than likely change this.
+	// TODO: &Param to fill, and return bool if succeded.
+	float floatValue = ini.GetFloatValue("section1", "floatValue");
+
+	// Remember to check if this is valid, as string returns null when not found.
+	const char *stringValue = ini.GetStringValue("section2", "stringValue");
+	bool boolValue = ini.GetBoolValue("section2", "boolValue");
 
 	std::cout << "[section1]-intValue:\t" << intValue << std::endl;
-	std::cout << "[section1]-floatValue:\t" << floatValue << std::endl;
-	std::cout << "[section2]-stringValue:\t" << stringValue << std::endl;
+	std::cout << "[section1]-floatValue:\t" << floatValue << std::endl;	
+
+	// check if its valid, as string returns null.
+	if (stringValue) {
+		std::cout << "[section2]-stringValue:\t" << stringValue << std::endl;
+	}
 	std::cout << "[section2]-boolValue:\t" << boolValue << std::endl;
 
 	return 0;
