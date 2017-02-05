@@ -258,3 +258,5 @@ paket-files/
 ## d3d Compiler ignores
 ![Dd]ebug/d3dcompiler_47.dll
 ![Rr]elease/d3dcompiler_47.dll
+
+*.ini
