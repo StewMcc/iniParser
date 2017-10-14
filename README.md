@@ -1,10 +1,10 @@
-iniParser
-=========
+# iniParser
 
-A simple tool to read/write .ini file, already test it under QT and cocos2d-x
+A simple tool to read/write .ini files.
 
+Heavily modified version of [fuzhuo's iniParser](https://github.com/fuzhuo/iniParser)
 
-###1. Sample file: test.ini
+## Sample file: test.ini
 
 	#comment line
 	[section1]
@@ -15,26 +15,47 @@ A simple tool to read/write .ini file, already test it under QT and cocos2d-x
 	stringValue=hello, world
 	boolValue=true
 
-###2. C++ Code to read/write it
+## C++ Code to read/write it
 
-    //write
-	ConfigINI *ini = new ConfigINI("test.ini");
-	ini->setIntValue("section1", "intValue", 1);
-	ini->setFloatValue("section1", "floatValue", 0.1);
-	ini->setStringValue("section2", "stringValue", "hello, world");
-	ini->setBoolValue("section2", "boolValue", true);
-	ini->writeConfigFile();
-	
-    //read
-    int intValue = ini->getIntValue("section1", "intValue");
-    float floatValue = ini->getFloatValue("section1", "floatValue");
-    const char *stringValue = ini->getStringValue("section2", "stringValue");
-    bool boolValue = ini->getBoolValue("section2", "boolValue");
- 
+### Write
+```c++
+LittleLot::ConfigIni ini = LittleLot::ConfigIni("test.ini");
+ini.SetIntValue("section1", "intValue", 1);
+ini.SetFloatValue("section1", "floatValue", 0.1f);
+ini.SetStringValue("section2", "stringValue", "hello, world");
+ini.SetBoolValue("section2", "boolValue", false);
+```
 
-A simple way to use ini files.
+### Saving
+```c++
+// This stops it from saving when it is destroyed, Editing files afterwards will turn auto save back on.
+ini.TurnOffAutoSave();
+// Note: cause auto save is turned off it will not actually save/override test.ini when it loses scope.
 
-```make run```
+// This happens by default when it goes out of scope aswell if you have edited anything.
+// However here we save it to a seperate file instead of its original file.	
+ini.WriteConfigFile("Newfile.ini");
+```
+### Reading
+```c++
+// Try to get a parameter
+int intValue;
+if (ini.GetIntValue("section1", "intValue", intValue)) {
+	// it was successful so output to the console.
+	std::cout << "[section1]-intValue:\t" << intValue << std::endl;
+}
+float floatValue;
+if (ini.GetFloatValue("section1", "floatValue", floatValue)) {
+	std::cout << "[section1]-floatValue:\t" << floatValue << std::endl;
+}
 
+std::string string_value;
+if (ini.GetStringValue("section2", "stringValue", string_value)) {
+	std::cout << "[section2]-stringValue:\t" << string_value << std::endl;
+}
 
-Done.
+bool boolValue;
+if (ini.GetBoolValue("section2", "boolValue", boolValue)) {
+	std::cout << "[section2]-boolValue:\t" << boolValue << std::endl;
+}
+```
